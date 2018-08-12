@@ -1,7 +1,8 @@
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Repository
+import java.util.concurrent.atomic.AtomicLong
 
 class Topic {
+    Long id
     String name
 
     Topic() {}
@@ -9,29 +10,46 @@ class Topic {
     Topic(String name) {
         this.name = name
     }
+
+    Topic(Long id, String name) {
+        this.id = id
+        this.name = name
+    }
 }
 
-@Service
+@Repository
 class TopicRepository {
-    static List<Topic> topics = new ArrayList<>()
+    static TreeMap<Long, Topic> topics = new TreeMap<>()
+    static AtomicLong topicSequence = new AtomicLong()
 
     static {
-        topics.push(new Topic("First Topic"))
-        topics.push(new Topic("Second Topic"))
-        topics.push(new Topic("Third Topic"))
+        String[] topicNames = ["First Topic", "Second Topic", "Third Topic"]
+        for (String topicName : topicNames) {
+            Topic topic = new Topic(topicSequence.incrementAndGet(), topicName)
+            topics.put(topic.getId(), topic)
+        }
     }
 
-    Collection<Topic> findAll() {
+    TreeMap<Long, Topic> findAll() {
         topics
     }
 
-    Topic findById(int id) {
-        topics.get(id - 1)
+    Topic findById(Long id) {
+        topics.get(id)
     }
 
-    void save(Topic topic) {
-        topics.push(topic)
+    Topic save(Topic topic) {
+        if (topic.getId() == null) {
+            topic.setId(topicSequence.incrementAndGet())
+        }
+        topics.put(topic.getId(), topic)
+        topic
     }
+
+    Topic remove(Long id) {
+        topics.remove(id)
+    }
+
 }
 
 @Controller
@@ -43,17 +61,37 @@ class HomepageController {
 }
 
 @RestController
+@RequestMapping("/topics")
 class TopicController {
     @Autowired
     private TopicRepository topicRepository
 
-    @RequestMapping(value = "/topics", method = RequestMethod.GET)
-    Collection<Topic> readTopics() {
+    @RequestMapping(method = RequestMethod.GET)
+    TreeMap<Long, Topic> readTopics() {
         topicRepository.findAll()
     }
 
-    @RequestMapping(value = "/topics/{topicId}", method = RequestMethod.GET)
-    Topic readTopic(@PathVariable int topicId) {
-        topicRepository.findById(topicId)
+    @RequestMapping(value = "{topicId}", method = RequestMethod.GET)
+    Topic readTopic(@PathVariable Long id) {
+        topicRepository.findById(id)
+    }
+
+    @RequestMapping(method = RequestMethod.POST)
+    Topic createTopic(@RequestBody Topic topic) {
+        Topic savedTopic = topicRepository.save(topic)
+        savedTopic
+    }
+
+    @RequestMapping(value = "{id}", method = RequestMethod.PUT)
+    Topic updateTopic(@PathVariable Long id, @RequestBody Topic topic) {
+        topic.setId(id)
+        topicRepository.save(topic)
+        topic
+    }
+
+    @RequestMapping(value = "{id}", method = RequestMethod.DELETE)
+    Topic deleteTopic(@PathVariable Long id) {
+        Topic topic = topicRepository.remove(id)
+        topic
     }
 }
